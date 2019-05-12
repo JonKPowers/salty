@@ -3,6 +3,7 @@ from openpyxl.worksheet.worksheet import Worksheet
 from openpyxl.workbook.workbook import Workbook
 from employee import Employee
 from datetime import datetime
+from week import SaltWeek
 import re
 
 class SaltLog:
@@ -12,6 +13,12 @@ class SaltLog:
         self.employee_list_start: tuple = self.find_first_employee()
         self.employee_list: list = self.get_employee_list()
         self.pcms: dict = self.get_pcm_list()
+        self.week_row: int = self.get_week_row()
+        self.week_cols: list = self.get_week_cols(self.week_row)
+
+        self.weeks = list()
+        for week_col in self.week_cols:
+            self.weeks.append(SaltWeek(log=self.xl_log, start_row=self.week_row, start_col=week_col))
 
     def find_first_employee(self) -> tuple:
         for cell in self.xl_log.iter_rows(min_col=2, max_col=2):
@@ -56,6 +63,26 @@ class SaltLog:
             pcm_details[date] = topic
 
         return pcm_details
+
+    def get_week_row(self) -> int:
+        for row in self.xl_log.iter_rows(max_col=10):
+            for cell in row:
+                try:
+                    if 'week' in cell.value.lower():
+                        return cell.row;
+                except AttributeError:
+                    pass
+        return None
+
+    def get_week_cols(self, week_row) -> list:
+        week_cols = list()
+        for cell in self.xl_log.iter_cols(min_row=week_row, max_row=week_row, max_col=30):
+            try:
+                if 'week' in cell[0].value.lower():
+                    week_cols.append(cell[0].column)
+            except AttributeError:
+                pass
+        return week_cols
 
 
 

@@ -4,8 +4,36 @@ import re
 
 
 class SaltWeek:
-    def __init__(self, ending_date):
-        self.ending_date = self.parse_date(ending_date)
+    def __init__(self, log, start_row: int, start_col: int):
+        self.log = log
+
+        # Set base coordinates
+
+        # Columns
+        self.week_col_heading = start_col
+        self.week_col_category = start_col
+        self.week_col_result = self.week_col_category + 1
+        self.week_col_comment = self.week_col_result + 1
+
+        # Rows
+        self.week_row_heading = start_row
+        self.week_row_PCM_topic = self.find_in_col(start_col, 'topic')
+        self.week_row_PCM_date = self.find_in_col(start_col, 'date')
+        self.week_row_signature = self.find_in_col(start_col, 'signature')
+
+        # PCM Cells
+        self.PCM_topic = self.log.cell(row=self.week_row_PCM_topic, column=self.week_col_comment).value
+        self.PCM_date = self.log.cell(row=self.week_row_PCM_date, column=self.week_col_comment).value
+
+        # Signature cell
+        self.signature = self.log.cell(row=self.week_row_signature, column=self.week_col_comment).value
+
+        # Get date information
+        self.ending_date_cell = self.log.cell(row=self.week_row_heading, column=self.week_col_heading).value
+        self.ending_date_string = re.search(r'\d{1,2}[/-]\d{1,2}[/-]\d{2,4}', self.ending_date_cell).group(0)
+        self.ending_date = self.parse_date(self.ending_date_string)
+
+
         self._salt_type = None
         self._live_salt_types = ['Partial Li Batt Mark/Label', 'Un-audited HazMat Package ',
                                  'ORM-D Air Mark (US, SJU & Canada Only)', 'ORM-D Mark (US, SJU & Canada  Only)',
@@ -75,6 +103,15 @@ class SaltWeek:
         if self._salt_type == 'Supplemental Drill':
             raise Exception
             # todo Work out how to grab this from the worksheet--might be an issue with the PitchFamily problem
+
+    def find_in_col(self, column: int, text: str) -> int:
+        for cell in self.log.iter_rows(min_row=self.week_row_heading, min_col=self.week_col_heading, max_col=self.week_col_heading):
+            try:
+                if text.lower() in cell[0].value.lower():
+                    return cell[0].row
+            except AttributeError:
+                pass
+        return None
 
 
 
