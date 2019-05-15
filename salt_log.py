@@ -4,6 +4,9 @@ from openpyxl.workbook.workbook import Workbook
 from employee import Employee
 from datetime import datetime
 from week import SaltWeek
+
+from datetime import date
+from datetime import datetime
 import re
 
 class SaltLog:
@@ -13,12 +16,18 @@ class SaltLog:
         self.employee_list_start: tuple = self.find_first_employee()
         self.employee_list: list = self.get_employee_list()
         self.pcms: dict = self.get_pcm_list()
+        self.drill_sheets = self.get_supp_drills()
         self.week_row: int = self.get_week_row()
         self.week_cols: list = self.get_week_cols(self.week_row)
 
         self.weeks = list()
         for week_col in self.week_cols:
             self.weeks.append(SaltWeek(log=self.xl_log, start_row=self.week_row, start_col=week_col))
+
+        # Set supplemental drill sheet # and correct PCM topic info on Week objects
+        for week in self.weeks:
+            week.set_supp_drill(self.drill_sheets)
+            week.set_correct_PCM(self.pcms)
 
     def find_first_employee(self) -> tuple:
         for cell in self.xl_log.iter_rows(min_col=2, max_col=2):
@@ -57,12 +66,30 @@ class SaltLog:
         pcm_sheets = [item for item in self.workbook.sheetnames if item.strip().startswith('PCM')]
 
         for item in pcm_sheets:
-            date_string = re.search(r'\d{1,2}[-/]\d{1,2}[-/]\d{4}', item).group(0)
-            date = datetime.strptime(date_string, '%m-%d-%Y').date()
+            pcm_date = self._parse_date(item)
             topic = self.get_pcm_topic(self.workbook[item])
-            pcm_details[date] = topic
+            pcm_details[pcm_date] = topic
 
         return pcm_details
+
+    def get_supp_drills(self) -> dict:
+        supp_drills = dict()
+        supp_drill_sheets = [item for item in self.workbook.sheetnames if 'drill' in item.strip().lower()]
+
+        for item in supp_drill_sheets:
+            drill_date = self._parse_date(item)
+            drill_sheet = self._find_drill_sheet_name(self.workbook[item])
+            supp_drills[drill_date] = drill_sheet
+
+        return supp_drills
+
+    def _find_drill_sheet_name(self, sheet: Worksheet) -> str:
+        for row in sheet.iter_rows(max_col=15):
+            for cell in row:
+                try:
+                    if cell.value != None: return cell.value
+                except AttributeError:      #MergedCells have no value attribute
+                    pass
 
     def get_week_row(self) -> int:
         for row in self.xl_log.iter_rows(max_col=10):
@@ -84,7 +111,17 @@ class SaltLog:
                 pass
         return week_cols
 
+    def _parse_date(self, _string:str) -> date:
+        date_string = re.search(r'\d{1,2}[/-]\d{1,2}[-/]\d{2,4}', _string).group(0)
+        try:
+            date = datetime.strptime(date_string, '%m-%d-%Y')
+        except ValueError:
+            try:
+                date = datetime.strptime(date_string, '%m/%d/%Y')
+            except ValueError:
+                raise Exception ('Could not parse date')
 
+        return date.date()
 
 
 

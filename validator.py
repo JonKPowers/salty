@@ -2,6 +2,9 @@ from employee import Employee
 from week import SaltWeek
 from SaltError import SaltError
 import re
+from datetime import datetime
+from datetime import date
+from datetime import timedelta
 
 class Validator:
     
@@ -140,6 +143,40 @@ class Validator:
             pass
         else:
             self.salt_errors.append(SaltError(employee, cells['result'], f'{result} is not a valid live SALT result'))
+
+    def check_supp_drills(self, employee: Employee):
+        drill_sheet_num = re.search(r'\d{1,2}\.\d{2,4}\.\d{1,2}]', self.week._supp_drill_num).group(0)
+        cells = self.week.get_entry(employee)
+        values = self.week.get_entry(employee, values=True)
+
+        # Check that they have the right drill sheet #
+        if drill_sheet_num not in values['comment']:
+            self.salt_errors.append(SaltError(employee, cells['comment'], f'Drill sheet number must be {drill_sheet_num}'))
+
+        # Check that the result is 'A'
+        if values['result'].strip() != "A":
+            self.salt_errors.append(SaltError(employee, cells['result'], 'Supp. drill result must be \'A\''))
+
+    def check_PCM(self):
+        # Info from SALT log
+        pcm_topic = self.week.PCM_topic
+        pcm_cell = self.week.PCM_topic_cell
+        pcm_date = self.week.PCM_date
+        pcm_date_cell = self.week.PCM_date_cell
+
+        # Correct info
+        correct_topic = self.week._correct_PCM_topic
+        correct_days: list = self.get_valid_days()
+        if pcm_topic.strip().lower() != correct_topic.strip().lower():
+            self.salt_errors.append(SaltError(None, pcm_cell, 'PCM topic doesn\'t match PCM tab'))
+
+
+    def get_valid_PCM_days(self) -> list:
+        weekending_date: date = self.week.ending_date
+
+
+
+
 
 
 

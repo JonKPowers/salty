@@ -34,14 +34,19 @@ class SaltWeek:
         self.signature= self.signature_cell.value
 
         # Get date information
-        self.ending_date_cell = self.log.cell(row=self.week_row_heading, column=self.week_col_heading).value
-        self.ending_date_string = re.search(r'\d{1,2}[/-]\d{1,2}[/-]\d{2,4}', self.ending_date_cell).group(0)
-        self.ending_date = self._parse_date(self.ending_date_string)
+        self.ending_date_cell_value = self.log.cell(row=self.week_row_heading, column=self.week_col_heading).value
+        self.ending_date_string: str = re.search(r'\d{1,2}[/-]\d{1,2}[/-]\d{2,4}', self.ending_date_cell_value).group(0)
+        self.ending_date: date = self._parse_date(self.ending_date_string)
 
         # Get weekly salt category
         self._salt_types = ['observation', 'live', 'supplemental drill']
-        self._salt_type_cell = self.find_salt_cell()
-        self._salt_type = self.salt_type_cell.value
+        self._salt_type_cell = self._find_salt_cell()
+        self._salt_type = self._salt_type_cell.value
+
+        # Supplemental drill sheet #, if any
+        self._supp_drill_num = None
+        # Correct PCM topic for the week
+        self._correct_PCM_topic = None
 
         # Valid live salt types
         self._live_salt_types = ['Partial Li Batt Mark/Label', 'Un-audited HazMat Package ',
@@ -74,10 +79,14 @@ class SaltWeek:
         return self._get_entry_int(employee.row, values=values)
 
     def _find_salt_cell(self):
-        for cell in self.log.iter_rows(min_col=self.week_col_comment, max_col=self.week_col_comment,
+        for row in self.log.iter_rows(min_col=self.week_col_comment, max_col=self.week_col_comment,
                                        min_row=self.week_row_heading):
-            if any([_type in cell.value.lower() for _type in self._salt_types]):
-                return cell
+            for cell in row:
+                try:
+                    if any([_type in cell.value.lower() for _type in self._salt_types]):
+                        return cell
+                except AttributeError:      # MergedCells have no value attribute
+                    pass
         raise Exception('Could not find salt category')
 
     def _find_in_col(self, column: int, text: str) -> int:
@@ -92,49 +101,11 @@ class SaltWeek:
     def _parse_date(self, date: str) -> date:
         return datetime.strptime(date, '%m/%d/%Y').date()
 
-    def validate_result(self, result: str, comment: str = None):
-        if self._salt_type == 'Observation':
-            # Syntax check
-            if result.strip().upper() not in ['A', 'U/R']:
-                return False
+    def set_supp_drill(self, drill_nums: dict) -> None :
+        self._supp_drill_num = drill_nums.get(self.ending_date)
 
-            # Make sure result code matches numbers
-            # todo Make sure this handles situations where the regex doesn't match--otherwise we'll get a Type error on NoneType
-            numbers = re.search(r'(\d{1,2})/(\d{2})', comment)
-            good, total = int(numbers.group(1)), int(numbers.group(2))
-            if good < total and result == 'A':
-                return False
-            if good == total and result == 'U/R':
-                return False
-
-            return True
-
-
-        if self._salt_type == 'Live':
-            return result.strip().upper() in ['A', 'U/A']
-        if self._salt_type == 'Supplemental Drill':
-            return result.strip().upper() == 'A'
-
-    def validate_comment(self, comment: str) -> bool:
-        if self._salt_type == 'Observation':
-            # Observations must have at least 10 samples
-            result = re.match(r'[Oo]bservation ?(\d{1,2})/(\d{2})', comment.strip())
-            if result is None:
-                return False    # Bad format
-            elif int(result.group(1)) > int(result.group(2)) or int(result.group(2)) > 19:
-                return False    # Bad numbers
-            else:
-                return True
-
-
-        if self._salt_type == 'Live':
-            return comment.strip() in self._live_salt_types or re.match(r'[Oo]ther [a-zA-Z0-9_/-][\sa-zA-Z0-9_/-]+') is not None
-
-        if self._salt_type == 'Supplemental Drill':
-            raise Exception
-            # todo Work out how to grab this from the worksheet--might be an issue with the PitchFamily problem
-
-
+    def set_correct_PCM(self, PCM_topics: dict) -> None:
+        self._correct_PCM_topic = PCM_topics.get(self.ending_date)
 
 
 
