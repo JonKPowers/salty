@@ -9,7 +9,7 @@ from datetime import timedelta
 class Validator:
     
     def __init__(self, week: SaltWeek):
-        self.week : SaltWeek  = week
+        self.week : SaltWeek = week
 
         # Categories that require that the result column is left blank
         self._no_results = ['vacation', 'disability', 'not in area',
@@ -24,6 +24,10 @@ class Validator:
                                  'Prohibited Diamond Label']
 
         self.salt_errors = list()
+
+        self.valid_PCM_weekdays: dict = {'Monday': 0,
+                                         'Tuesday': 1,
+                                         'Wednesday': 2}
 
     def check_for_blanks(self, employee: Employee):
         data = self.week.get_entry(employee)
@@ -164,15 +168,33 @@ class Validator:
         pcm_date = self.week.PCM_date
         pcm_date_cell = self.week.PCM_date_cell
 
-        # Correct info
+        # Check that the log has the correct PCM topic info
         correct_topic = self.week._correct_PCM_topic
         correct_days: list = self.get_valid_days()
         if pcm_topic.strip().lower() != correct_topic.strip().lower():
             self.salt_errors.append(SaltError(None, pcm_cell, 'PCM topic doesn\'t match PCM tab'))
 
+        # Check that the log has an acceptable PCM date
+        if pcm_date not in get_valid_PCM_days():
+            self.salt_errors.append(SaltError(None, pcm_date_cell, 'PCM date not valid--must be Mon., Tues. or Wed. of week'))
+
+        # Check that there is a valid signature (name + GEMS)
+
+
+
 
     def get_valid_PCM_days(self) -> list:
         weekending_date: date = self.week.ending_date
+        valid_pcm_days: list = [date - timedelta(days=item) for item in range(3, 6)]
+        return valid_pcm_days
+
+    def _validate_signature(self) -> bool:
+        signature_pattern = r'^[A-Za-z-\']+ +[A-Za-z-.]+[A-Za-z-. ]+?\d{7}$'
+        search_result = re.search(signature_pattern, self.week.signature.strip())
+        if search_result is None:
+            self.salt_errors.append(SaltError(None, self.week.signature_cell, 'Invalid signature format'))
+
+
 
 
 
