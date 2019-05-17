@@ -175,25 +175,22 @@ class Validator:
             self.salt_errors.append(SaltError(None, pcm_cell, 'PCM topic doesn\'t match PCM tab'))
 
         # Check that the log has an acceptable PCM date
-        if pcm_date not in get_valid_PCM_days():
+        if pcm_date not in self.get_valid_PCM_days():
             self.salt_errors.append(SaltError(None, pcm_date_cell, 'PCM date not valid--must be Mon., Tues. or Wed. of week'))
 
         # Check that there is a valid signature (name + GEMS)
-
-
-
+        self._validate_signature()
 
     def get_valid_PCM_days(self) -> list:
         weekending_date: date = self.week.ending_date
         valid_pcm_days: list = [date - timedelta(days=item) for item in range(3, 6)]
         return valid_pcm_days
 
-    def _validate_signature(self) -> bool:
-        signature_pattern = r'^[A-Za-z-\']+ +[A-Za-z-.]+[A-Za-z-. ]+?\d{7}$'
+    def _validate_signature(self) -> None:
+        signature_pattern = r'^[A-Za-z-\']+ +[A-Za-z-. ]+\d{7}$'
         search_result = re.search(signature_pattern, self.week.signature.strip())
         if search_result is None:
             self.salt_errors.append(SaltError(None, self.week.signature_cell, 'Invalid signature format'))
-
 
 
 

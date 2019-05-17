@@ -20,6 +20,13 @@ class SaltLog:
         self.week_row: int = self.get_week_row()
         self.week_cols: list = self.get_week_cols(self.week_row)
 
+        self.monthly_drill_date_col = None
+        self.monthly_drill_result_col = None
+        self._get__monthly_training_drill_cols()
+
+        self.operation_name_cell = self._get_operation_cell()
+        self.operation_name = self.operation_name_cell.value
+
         self.weeks = list()
         for week_col in self.week_cols:
             self.weeks.append(SaltWeek(log=self.xl_log, start_row=self.week_row, start_col=week_col))
@@ -57,7 +64,8 @@ class SaltLog:
     def get_pcm_topic(self, sheet: Worksheet) -> str:
         for row in sheet.iter_rows(min_col=1, max_col=15, max_row=5):
             for cell in row:
-                if cell.value != None: return cell.value
+                if cell.value is not None:
+                    return cell.value
 
         raise Exception('No PCM topic found in cells searched')
 
@@ -96,7 +104,7 @@ class SaltLog:
             for cell in row:
                 try:
                     if 'week' in cell.value.lower():
-                        return cell.row;
+                        return cell.row
                 except AttributeError:
                     pass
         return None
@@ -110,6 +118,49 @@ class SaltLog:
             except AttributeError:
                 pass
         return week_cols
+
+    def _get__monthly_training_drill_cols(self):
+        base_col = None
+        for cell in self.xl_log.iter_cols(min_row=self.week_row, max_row=self.week_row):
+            try:
+                if 'monthly' in cell[0].value.lower():
+                    base_col = cell[0].column
+            except AttributeError:
+                pass
+            if base_col is not None:
+                break
+
+        for row in self.xl_log.iter_rows(min_row=self.week_row, min_col=base_col, max_col=base_col+1):
+            for cell in row:
+                try:
+                    if 'date' in cell.value.lower():
+                        self.monthly_drill_date_col = cell.column
+                    if 'result' in cell.value.lower():
+                        self.monthly_drill_result_col = cell.column
+                except AttributeError:
+                    pass
+            if (self.monthly_drill_date_col is not None) and (self.monthly_drill_result_col is not None):
+                break
+
+    def _get_operation_cell(self):
+        row_num = None
+        col_num = None
+
+        for row in self.xl_log.iter_rows(max_col=10):
+            for cell in row:
+                try:
+                    if 'operation' in cell.value.lower():
+                        row_num = cell.row
+                        continue
+                    if row_num is not None:
+                        if type(cell).__name__ == 'Cell':
+                            col_num = cell.column
+                except AttributeError:
+                    pass
+            if (row_num is not None) and (col_num is not None):
+                break
+
+        return self.xl_log.cell(row=row_num, column=col_num)
 
     def _parse_date(self, _string:str) -> date:
         date_string = re.search(r'\d{1,2}[/-]\d{1,2}[-/]\d{2,4}', _string).group(0)
