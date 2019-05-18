@@ -1,10 +1,19 @@
-from employee import Employee
-from week import SaltWeek
-from SaltError import SaltError
 import re
 from datetime import datetime
 from datetime import date
 from datetime import timedelta
+
+#########################
+# Typing setup
+#########################
+from typing import List
+from employee import Employee
+from week import SaltWeek
+from SaltError import SaltError
+from openpyxl.cell.cell import Cell
+
+DateList = List[date]
+
 
 class Validator:
     
@@ -12,8 +21,14 @@ class Validator:
         self.week : SaltWeek = week
 
         # Categories that require that the result column is left blank
-        self._no_results = ['vacation', 'disability', 'not in area',
-                            'off', 'not employed']
+        self._not_present_dict = {
+            'vacation': ['vacation', 'vacation week',],
+            'disability': ['disability',],
+            'not in area': ['not in area', 'did not double shift', 'training week',],
+            'off': ['absent', 'option week',],
+            'not employed': ['not employed', 'cleared',]
+        }
+        self._no_results = list(self._not_present_dict.keys())
 
         # Valid live salt types
         self._live_salt_types = ['Partial Li Batt Mark/Label', 'Un-audited HazMat Package ',
@@ -25,14 +40,73 @@ class Validator:
 
         self.salt_errors = list()
 
-    def check_for_blanks(self, employee: Employee):
+    def run_checks(self, employee_list: list) -> list:
+        """Runs validation tests on week associated with Validator instance.
+
+        run_checks() performs the employee-specific validation tests on each employee in the employee_list, and
+        it performs the PCM and signature validation. Each issue found during validation is encapsulated in
+        a SaltError object, and run_checks() returns a list of SaltError objects for further processing. Each
+        SaltError instance contains a reference to the cell where the error occurred, the Employee object associated
+        with the issue, and a string describing the issue.
+
+        run_checks() does not make any changes to the underlying Worksheet or Workbook. Instead, the list of
+        SaltErrors it returns should be processed, and any action or changes should be done based on those SaltErrors.
+
+        Note that the employee-specific monthly drill validation is handled by the MonthValidator.
+
+        Employee-specific validation tests:
+            * _check_for_blank_category()
+            * _check_category_no_result()
+            * _check_for_blank_result()
+            * _check_for_blank_comment()
+            * _check_observation()
+            * _check_live_salt()
+            * _check_supp_drills()
+
+        Non-employee-specific validation tests:
+            * _check_PCM()
+            * _validate_signature()
+
+
+
+        Args:
+            employee_list: List of Employee objects corresponding to the employees represented in the Week.
+                These are used to determine which rows in the Week to validate and to provide metadata for
+                any SaltErrors generated during validation.
+
+        Returns:
+            A list of SaltError objects corresponding to issues found while validating the Week.
+
+        """
+        for employee in employee_list:
+            self._check_for_blank_category(employee)
+            self._check_category_no_result(employee)
+            self._check_for_blank_result(employee)
+            self._check_for_blank_comment(employee)
+            self._check_observation(employee)
+            self._check_live_salt(employee)
+            self._check_supp_drills(employee)
+
+        self._check_PCM()
+        self._validate_signature()
+
+        return self.salt_errors
+
+    def _check_for_blanks(self, employee: Employee):
         data = self.week.get_entry(employee)
         for item in data:
             if data[item].value is None:
                 error = SaltError(employee, data[item], 'Cell should not be blank')
                 self.salt_errors.append(error)
 
-    def check_for_blank_result(self, employee: Employee):
+    def _check_for_blank_category(self, employee: Employee):
+        cells = self.week.get_entry(employee)
+        values = self.week.get_entry(employee, values=True)
+
+        if values['category'] is None:
+            self.salt_errors.append(SaltError(employee, cells['category'], 'SALT Category cannot be blank'))
+
+    def _check_for_blank_result(self, employee: Employee):
         cells = self.week.get_entry(employee)
         values = self.week.get_entry(employee, values=True)
 
@@ -43,25 +117,16 @@ class Validator:
             if not (values['category'] is None and values['comment'] is None):
                 self.salt_errors.append(SaltError(employee, cells['result'], 'Result cannot be blank'))
 
-    def check_for_blank_category(self, employee: Employee):
+    def _check_for_blank_comment(self, employee:Employee):
         cells = self.week.get_entry(employee)
         values = self.week.get_entry(employee, values=True)
 
-        if values['category'] is None:
-            return SaltError(employee, cells['category'], 'SALT Category cannot be blank')
+        if values['comment'] is None:
+            self.salt_errors.append(SaltError(employee, cells['comment'], 'Comment cannot be blank'))
 
-    def check_category_no_result(self, employee: Employee):
-        # Check that there is no result
+    def _check_category_no_result(self, employee: Employee):
         cells = self.week.get_entry(employee)
         values = self.week.get_entry(employee, values=True)
-
-        not_present_dict = {
-            'vacation': ['vacation', 'vacation week',],
-            'disability': ['disability',],
-            'not in area': ['not in area', 'did not double shift', 'training week',],
-            'off': ['absent', 'option week',],
-            'not employed': ['not employed', 'cleared',]
-        }
 
         if values['category'] not in self._no_results:
             return None
@@ -71,10 +136,10 @@ class Validator:
                                               f'Result must be blank if category is {values["category"]}'))
 
         not_present_reason = values['category']
-        if values['comment'].strip().lower() not in not_present_dict[not_present_reason]:
+        if values['comment'].strip().lower() not in self._not_present_dict[not_present_reason]:
             self.salt_errors.append(SaltError(employee, cells['comment'], f'{values["comment"]} is not a valid comment for {not_present_reason}'))
 
-    def check_observation(self, employee: Employee):
+    def _check_observation(self, employee: Employee):
 
         cells = self.week.get_entry(employee)
         values = self.week.get_entry(employee, values=True)
@@ -88,7 +153,7 @@ class Validator:
             return None
 
         # Check that we have 'Observation x/x' as comment
-        observation_comment = re.search(r'i[Oo]bservation ?(\d{1,2})/(\d{2,})]', values['comment'].strip())
+        observation_comment = re.search(r'[Oo]bservation ?(\d{1,2})/(\d{2,})', values['comment'].strip())
         if values['category'].lower() == 'observation' and observation_comment is None:
             self.salt_errors.append(SaltError(employee, cells['comment'], f'Invalid observation comment'))
 
@@ -122,7 +187,7 @@ class Validator:
         else:
             self.salt_errors.append(SaltError(employee, cells['result'], f'{result} is not a valid result'))
 
-    def check_live_salt(self, employee: Employee):
+    def _check_live_salt(self, employee: Employee):
 
         cells = self.week.get_entry(employee)
         values = self.week.get_entry(employee, values=True)
@@ -134,7 +199,8 @@ class Validator:
         ###############################
         # Check that the salt type is allowed:
         salt_type = values['comment'].strip()
-        if (salt_type.lower() not in self._live_salt_types) or (re.match(r'[Oo]ther [a-zA-Z0-9_/-][\sa-zA-Z0-9_/-]+') is None):
+        if (salt_type not in self._live_salt_types) and \
+                (re.search(r'[Oo]ther [a-zA-Z0-9_/-][\sa-zA-Z0-9_/-]+', salt_type) is None):
             self.salt_errors.append(SaltError(employee, cells['comment'], f'{salt_type} is not a valid SALT type'))
 
         ###############################
@@ -148,7 +214,7 @@ class Validator:
         else:
             self.salt_errors.append(SaltError(employee, cells['result'], f'{result} is not a valid live SALT result'))
 
-    def check_supp_drills(self, employee: Employee):
+    def _check_supp_drills(self, employee: Employee):
         cells = self.week.get_entry(employee)
         values = self.week.get_entry(employee, values=True)
 
@@ -166,26 +232,26 @@ class Validator:
         if values['result'].strip() != "A":
             self.salt_errors.append(SaltError(employee, cells['result'], 'Supp. drill result must be \'A\''))
 
-    def check_PCM(self):
+    def _check_PCM(self):
         # Info from SALT log
-        pcm_topic = self.week.PCM_topic
-        pcm_cell = self.week.PCM_topic_cell
-        pcm_date = self.week.PCM_date
-        pcm_date_cell = self.week.PCM_date_cell
+        pcm_topic: str = self.week.PCM_topic
+        pcm_cell: Cell = self.week.PCM_topic_cell
+        pcm_date: date = self.week.PCM_date
+        pcm_date_cell: Cell = self.week.PCM_date_cell
 
         # Check that the log has the correct PCM topic info
-        correct_topic = self.week._correct_PCM_topic
+        correct_topic: str = self.week._correct_PCM_topic
         if pcm_topic.strip().lower() != correct_topic.strip().lower():
             self.salt_errors.append(SaltError(None, pcm_cell, 'PCM topic doesn\'t match PCM tab'))
 
         # Check that the log has an acceptable PCM date
-        if pcm_date not in self.get_valid_PCM_days():
+        if pcm_date not in self._get_valid_PCM_days():
             self.salt_errors.append(SaltError(None, pcm_date_cell, 'PCM date not valid--must be Mon., Tues. or Wed. of week'))
 
         # Check that there is a valid signature (name + GEMS)
         self._validate_signature()
 
-    def get_valid_PCM_days(self) -> list:
+    def _get_valid_PCM_days(self) -> list:
         weekending_date: date = self.week.ending_date
         valid_pcm_days: list = [weekending_date - timedelta(days=item) for item in range(3, 6)]
         return valid_pcm_days
@@ -195,6 +261,8 @@ class Validator:
         search_result = re.search(signature_pattern, self.week.signature.strip())
         if search_result is None:
             self.salt_errors.append(SaltError(None, self.week.signature_cell, 'Invalid signature format'))
+
+    # todo Check that any rows not occupied by an employee are blank--if it should be blank, make sure it is.
 
 
 

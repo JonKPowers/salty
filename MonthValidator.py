@@ -1,27 +1,47 @@
+####################
+# Typing setup
+####################
+from typing import List
 from salt_log import SaltLog
-from employee import Employee
-from datetime import timedelta
+from week import SaltWeek
 from SaltError import SaltError
+from employee import Employee
 
+EmployeeList = List[Employee]
+SaltErrorList = List[SaltError]
+WeekList = List[SaltWeek]
+
+####################
+# Other imports
+####################
+from datetime import timedelta
 import re
 
 class MonthValidator:
 
     def __init__(self, log: SaltLog):
-        self.log = log
-        self.employees = log.employee_list
-        self.weeks = log.weeks
-        self.drill_date_col = log.monthly_drill_date_col
-        self.drill_result_col = log.monthly_drill_result_col
-        self.drill_row = log.week_row
+        self.log: SaltLog = log
+        self.employee_list: EmployeeList = log.employee_list
+        self.weeks: WeekList = log.weeks
+        self.drill_date_col: int = log.monthly_drill_date_col
+        self.drill_result_col: int = log.monthly_drill_result_col
+        self.drill_row: int = log.week_row
 
         self.not_present_results = ['vacation', 'disability', 'not in area', 'off', 'not employed']
 
-        self.valid_sort_code = '2DA'
-        self.valid_building_code = 'Wing C'
+        self.valid_sort_code = r'2DA'
+        self.valid_building_code = r'Wing C'
         self.valid_posi_code = r'(?:[Pp]osi ?)?[1-7] ?(?:[Nn]orth|[Nn]|[Ss]outh|[Ss])'
 
         self.salt_errors = list()
+
+    def run_checks(self) -> SaltErrorList:
+        for employee in self.employee_list:
+            self.check_training_drill(employee)
+
+        self.check_operation_name()
+
+        return self.salt_errors
 
     def check_training_drill(self, employee: Employee):
 

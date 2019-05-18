@@ -21,13 +21,13 @@ class SaltWeek:
         self.week_row_PCM_topic = self._find_in_col(start_col, 'topic')
         self.week_row_PCM_date = self._find_in_col(start_col, 'date')
         self.week_row_signature = self._find_in_col(start_col, 'signature')
+        self.week_row_end = self.week_row_PCM_topic - 1
 
         # PCM Cells
         self.PCM_topic_cell = self.log.cell(row=self.week_row_PCM_topic, column=self.week_col_comment)
         self.PCM_date_cell = self.log.cell(row=self.week_row_PCM_date, column=self.week_col_comment)
         self.PCM_topic = self.PCM_topic_cell.value
-        self.PCM_date = self.PCM_date_cell.value
-
+        self.PCM_date: date = self.PCM_date_cell.value.date()
 
         # Signature cell
         self.signature_cell = self.log.cell(row=self.week_row_signature, column=self.week_col_comment)
@@ -55,6 +55,12 @@ class SaltWeek:
                                  'Acceptable Diamond Label', 'Cargo Aircraft Only Label',
                                  'Ground Small Quantities Mark', 'Lithium Battery Mark/Label',
                                  'Prohibited Diamond Label']
+
+    def set_supp_drill(self, drill_nums: dict) -> None :
+        self._supp_drill_num = drill_nums.get(self.ending_date)
+
+    def set_correct_PCM(self, PCM_topics: dict) -> None:
+        self._correct_PCM_topic = PCM_topics.get(self.ending_date)
 
     def get_entry(self, row_source, values=False):
         funcs = {'int': self._get_entry_int,
@@ -100,12 +106,6 @@ class SaltWeek:
 
     def _parse_date(self, date: str) -> date:
         return datetime.strptime(date, '%m/%d/%Y').date()
-
-    def set_supp_drill(self, drill_nums: dict) -> None :
-        self._supp_drill_num = drill_nums.get(self.ending_date)
-
-    def set_correct_PCM(self, PCM_topics: dict) -> None:
-        self._correct_PCM_topic = PCM_topics.get(self.ending_date)
 
 
 

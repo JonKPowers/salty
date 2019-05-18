@@ -1,6 +1,10 @@
 from openpyxl.cell.cell import MergedCell
 from openpyxl.worksheet.worksheet import Worksheet
 from openpyxl.workbook.workbook import Workbook
+from openpyxl.cell.cell import Cell
+from openpyxl.styles import PatternFill, Color
+from openpyxl.styles.colors import YELLOW
+
 from employee import Employee
 from datetime import datetime
 from week import SaltWeek
@@ -35,6 +39,9 @@ class SaltLog:
         for week in self.weeks:
             week.set_supp_drill(self.drill_sheets)
             week.set_correct_PCM(self.pcms)
+
+    def set_highlight(self, cell: Cell) -> None:
+        cell.fill = PatternFill(fill_type='solid', fgColor=Color(rgb='FFFFF200', type='rgb'), bgColor=Color(rgb='FFFFFF00', type='rgb'))
 
     def find_first_employee(self) -> tuple:
         for cell in self.xl_log.iter_rows(min_col=2, max_col=2):
