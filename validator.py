@@ -236,7 +236,7 @@ class Validator:
         # Info from SALT log
         pcm_topic: str = self.week.PCM_topic
         pcm_cell: Cell = self.week.PCM_topic_cell
-        pcm_date: date = self.week.PCM_date
+        pcm_date: date = self.week.PCM_date.date()
         pcm_date_cell: Cell = self.week.PCM_date_cell
 
         # Check that the log has the correct PCM topic info

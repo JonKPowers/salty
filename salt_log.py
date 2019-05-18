@@ -41,7 +41,8 @@ class SaltLog:
             week.set_correct_PCM(self.pcms)
 
     def set_highlight(self, cell: Cell) -> None:
-        cell.fill = PatternFill(fill_type='solid', fgColor=Color(rgb='FFFFF200', type='rgb'), bgColor=Color(rgb='FFFFFF00', type='rgb'))
+        cell.fill = PatternFill(fill_type='solid', fgColor=Color(rgb='FFFFF200', type='rgb'),
+                                bgColor=Color(rgb='FFFFFF00', type='rgb'))
 
     def find_first_employee(self) -> tuple:
         for cell in self.xl_log.iter_rows(min_col=2, max_col=2):

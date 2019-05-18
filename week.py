@@ -27,7 +27,7 @@ class SaltWeek:
         self.PCM_topic_cell = self.log.cell(row=self.week_row_PCM_topic, column=self.week_col_comment)
         self.PCM_date_cell = self.log.cell(row=self.week_row_PCM_date, column=self.week_col_comment)
         self.PCM_topic = self.PCM_topic_cell.value
-        self.PCM_date: date = self.PCM_date_cell.value.date()
+        self.PCM_date: datetime = self.PCM_date_cell.value
 
         # Signature cell
         self.signature_cell = self.log.cell(row=self.week_row_signature, column=self.week_col_comment)
