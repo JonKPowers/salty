@@ -34,7 +34,7 @@ class SaltWeek:
         self.signature= self.signature_cell.value
 
         # Get date information
-        self.ending_date_cell_value = self.log.cell(row=self.week_row_heading, column=self.week_col_heading).value
+        self.ending_date_cell_value: str = self.log.cell(row=self.week_row_heading, column=self.week_col_heading).value
         self.ending_date_string: str = re.search(r'\d{1,2}[/-]\d{1,2}[/-]\d{2,4}', self.ending_date_cell_value).group(0)
         self.ending_date: date = self._parse_date(self.ending_date_string)
 

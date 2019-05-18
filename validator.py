@@ -25,14 +25,10 @@ class Validator:
 
         self.salt_errors = list()
 
-        self.valid_PCM_weekdays: dict = {'Monday': 0,
-                                         'Tuesday': 1,
-                                         'Wednesday': 2}
-
     def check_for_blanks(self, employee: Employee):
         data = self.week.get_entry(employee)
-        if all([data[item].value == None for item in data]):
-            for item in data:
+        for item in data:
+            if data[item].value is None:
                 error = SaltError(employee, data[item], 'Cell should not be blank')
                 self.salt_errors.append(error)
 
@@ -85,6 +81,10 @@ class Validator:
 
         # Check that we're not in the wrong place
         if values['category'].strip().lower() != 'observation':
+            return None
+
+        # Check that there is a comment for the observation
+        if values['comment'] is None:
             return None
 
         # Check that we have 'Observation x/x' as comment
@@ -149,13 +149,18 @@ class Validator:
             self.salt_errors.append(SaltError(employee, cells['result'], f'{result} is not a valid live SALT result'))
 
     def check_supp_drills(self, employee: Employee):
-        drill_sheet_num = re.search(r'\d{1,2}\.\d{2,4}\.\d{1,2}]', self.week._supp_drill_num).group(0)
         cells = self.week.get_entry(employee)
         values = self.week.get_entry(employee, values=True)
 
+        # Check that we're not in the wrong place
+        if values['category'].strip().lower() != 'supplemental drill':
+            return None
+
         # Check that they have the right drill sheet #
+        drill_sheet_num = re.search(r'\d{1,2}\.\d{2,4}\.\d{1,2}]', self.week._supp_drill_num).group(0)
         if drill_sheet_num not in values['comment']:
             self.salt_errors.append(SaltError(employee, cells['comment'], f'Drill sheet number must be {drill_sheet_num}'))
+
 
         # Check that the result is 'A'
         if values['result'].strip() != "A":
@@ -170,7 +175,6 @@ class Validator:
 
         # Check that the log has the correct PCM topic info
         correct_topic = self.week._correct_PCM_topic
-        correct_days: list = self.get_valid_days()
         if pcm_topic.strip().lower() != correct_topic.strip().lower():
             self.salt_errors.append(SaltError(None, pcm_cell, 'PCM topic doesn\'t match PCM tab'))
 
@@ -183,7 +187,7 @@ class Validator:
 
     def get_valid_PCM_days(self) -> list:
         weekending_date: date = self.week.ending_date
-        valid_pcm_days: list = [date - timedelta(days=item) for item in range(3, 6)]
+        valid_pcm_days: list = [weekending_date - timedelta(days=item) for item in range(3, 6)]
         return valid_pcm_days
 
     def _validate_signature(self) -> None:
