@@ -7,12 +7,16 @@ from datetime import timedelta
 # Typing setup
 #########################
 from typing import List
+from typing import Dict
 from employee import Employee
 from week import SaltWeek
 from SaltError import SaltError
 from openpyxl.cell.cell import Cell
 
 DateList = List[date]
+SaltErrorList = List[SaltError]
+CellDict = Dict[str, Cell]
+StrDict = Dict[str, str]
 
 
 class Validator:
@@ -38,7 +42,7 @@ class Validator:
                                  'Ground Small Quantities Mark', 'Lithium Battery Mark/Label',
                                  'Prohibited Diamond Label']
 
-        self.salt_errors = list()
+        self.salt_errors: SaltErrorList = list()
 
     def run_checks(self, employee_list: list) -> list:
         """Runs validation tests on week associated with Validator instance.
@@ -139,17 +143,34 @@ class Validator:
         if values['comment'].strip().lower() not in self._not_present_dict[not_present_reason]:
             self.salt_errors.append(SaltError(employee, cells['comment'], f'{values["comment"]} is not a valid comment for {not_present_reason}'))
 
+    def _initial_comment_checks(self, salt_type: str, employee: Employee, cells: CellDict, values: StrDict) -> bool:
+        # Check that we're not in the wrong place:
+        # If the SALT category is blank, mark it as an issue
+        if values['category'] == None:
+            self.salt_errors.append(SaltError(employee, cells['category'], 'SALT type should not be blank'))
+            return
+        # If it's not blank, only proceed if this is an observation week
+        if self.week.salt_type.lower() != 'observation':
+            return False
+
+        # Make sure that the SALT type is matches self.week.salt_type
+        if values['category'].strip().lower() != salt_type:
+            self.salt_errors.append(SaltError(employee, cells['category'], f'SALT type should be {salt_type.title()}'))
+
+        # Check that there is a comment for the observation. There is no situation where there should not be
+        # A comment for the SALT week
+        if values['comment'] is None:
+            self.salt_errors.append(SaltError(employee, cells['comment'], 'Comment field should not be blank'))
+
+        return True
+
     def _check_observation(self, employee: Employee):
 
         cells = self.week.get_entry(employee)
         values = self.week.get_entry(employee, values=True)
 
-        # Check that we're not in the wrong place
-        if values['category'].strip().lower() != 'observation':
-            return None
-
-        # Check that there is a comment for the observation
-        if values['comment'] is None:
+        # Make sure we're in the right place and run initial comment checks
+        if not self._initial_comment_checks('observation', employee, cells, values):
             return None
 
         # Check that we have 'Observation x/x' as comment
@@ -192,8 +213,8 @@ class Validator:
         cells = self.week.get_entry(employee)
         values = self.week.get_entry(employee, values=True)
 
-        # Check that we're not in the wrong place
-        if values['category'].strip().lower() != 'live salt':
+        # Make sure we're in the right place and run initial comment checks
+        if not self._initial_comment_checks('live salt', employee, cells, values):
             return None
 
         ###############################
@@ -218,15 +239,14 @@ class Validator:
         cells = self.week.get_entry(employee)
         values = self.week.get_entry(employee, values=True)
 
-        # Check that we're not in the wrong place
-        if values['category'].strip().lower() != 'supplemental drill':
+        # Make sure we're in the right place and run initial comment checks
+        if not self._initial_comment_checks('supplemental drill', employee, cells, values):
             return None
 
         # Check that they have the right drill sheet #
         drill_sheet_num = re.search(r'\d{1,2}\.\d{2,4}\.\d{1,2}]', self.week._supp_drill_num).group(0)
         if drill_sheet_num not in values['comment']:
             self.salt_errors.append(SaltError(employee, cells['comment'], f'Drill sheet number must be {drill_sheet_num}'))
-
 
         # Check that the result is 'A'
         if values['result'].strip() != "A":
@@ -236,16 +256,21 @@ class Validator:
         # Info from SALT log
         pcm_topic: str = self.week.PCM_topic
         pcm_cell: Cell = self.week.PCM_topic_cell
-        pcm_date: date = self.week.PCM_date.date()
+        pcm_date: date = self.week.PCM_date
         pcm_date_cell: Cell = self.week.PCM_date_cell
 
         # Check that the log has the correct PCM topic info
-        correct_topic: str = self.week._correct_PCM_topic
-        if pcm_topic.strip().lower() != correct_topic.strip().lower():
-            self.salt_errors.append(SaltError(None, pcm_cell, 'PCM topic doesn\'t match PCM tab'))
+        if (pcm_topic is None) or (pcm_topic == ''):
+            self.salt_errors.append(SaltError(None, pcm_cell, 'PCM topis shouldn\'t be blank'))
+        else:
+            correct_topic: str = self.week._correct_PCM_topic
+            if pcm_topic.strip().lower() != correct_topic.strip().lower():
+                self.salt_errors.append(SaltError(None, pcm_cell, 'PCM topic doesn\'t match PCM tab'))
 
         # Check that the log has an acceptable PCM date
-        if pcm_date not in self._get_valid_PCM_days():
+        if pcm_date is None:
+            self.salt_errors.append(SaltError(None, pcm_date_cell, 'PCM date shouldn\'t be blank'))
+        elif pcm_date.date() not in self._get_valid_PCM_days():
             self.salt_errors.append(SaltError(None, pcm_date_cell, 'PCM date not valid--must be Mon., Tues. or Wed. of week'))
 
         # Check that there is a valid signature (name + GEMS)
@@ -258,6 +283,13 @@ class Validator:
 
     def _validate_signature(self) -> None:
         signature_pattern = r'^[A-Za-z-\']+ +[A-Za-z-. ]+\d{7}$'
+        # Make sure signature isn't blank
+        if self.week.signature is None or self.week.signature == '':
+            self.salt_errors.append(SaltError(None, self.week.signature_cell, 'Signature shouldn\'t be blank'))
+            return
+
+        # Check that signature has valid format
+        # todo give more granular feedback about format error, e.g., 6-digit GEMS
         search_result = re.search(signature_pattern, self.week.signature.strip())
         if search_result is None:
             self.salt_errors.append(SaltError(None, self.week.signature_cell, 'Invalid signature format'))

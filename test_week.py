@@ -11,29 +11,29 @@ class TestWeekMethods(unittest.TestCase):
     def test_only_valid_salt_categories(self):
         salt_week = SaltWeek('1/1/2019')
         salt_week.set_salt_type('Observation')
-        self.assertEqual(salt_week._salt_type, 'Observation')
+        self.assertEqual(salt_week.salt_type, 'Observation')
         salt_week.set_salt_type('observation')
-        self.assertEqual(salt_week._salt_type, 'Observation')
+        self.assertEqual(salt_week.salt_type, 'Observation')
         salt_week.set_salt_type('Live')
-        self.assertEqual(salt_week._salt_type, 'Live')
+        self.assertEqual(salt_week.salt_type, 'Live')
         salt_week.set_salt_type('live')
-        self.assertEqual(salt_week._salt_type, 'Live')
+        self.assertEqual(salt_week.salt_type, 'Live')
         salt_week.set_salt_type('Supplemental Drill')
-        self.assertEqual(salt_week._salt_type, 'Supplemental Drill')
+        self.assertEqual(salt_week.salt_type, 'Supplemental Drill')
         salt_week.set_salt_type('supplemental Drill')
-        self.assertEqual(salt_week._salt_type, 'Supplemental Drill')
+        self.assertEqual(salt_week.salt_type, 'Supplemental Drill')
         salt_week.set_salt_type('supplemental Drill')
-        self.assertEqual(salt_week._salt_type, 'Supplemental Drill')
+        self.assertEqual(salt_week.salt_type, 'Supplemental Drill')
 
         salt_week = SaltWeek('2/2/2019')
         salt_week.set_salt_type('Bogus type')
-        self.assertEqual(salt_week._salt_type, None)
+        self.assertEqual(salt_week.salt_type, None)
 
 class TestObservationCommentValidation(unittest.TestCase):
 
     def setUp(self):
         self.log = SaltWeek('1/1/2019')
-        self.log._salt_type = 'Observation'
+        self.log.salt_type = 'Observation'
 
     def test_valid_comments(self):
         self.assertEqual(self.log.validate_comment('Observation 10/10'), True)
@@ -57,7 +57,7 @@ class TestObservationResultValidation(unittest.TestCase):
 
     def setUp(self):
         self.log = SaltWeek('1/1/2019')
-        self.log._salt_type = 'Observation'
+        self.log.salt_type = 'Observation'
 
     def test_bad_result_code(self):
         self.assertEqual(self.log.validate_result('U', 'Observation 7/10'), False)

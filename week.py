@@ -31,7 +31,7 @@ class SaltWeek:
 
         # Signature cell
         self.signature_cell = self.log.cell(row=self.week_row_signature, column=self.week_col_comment)
-        self.signature= self.signature_cell.value
+        self.signature = self.signature_cell.value
 
         # Get date information
         self.ending_date_cell_value: str = self.log.cell(row=self.week_row_heading, column=self.week_col_heading).value
@@ -41,7 +41,7 @@ class SaltWeek:
         # Get weekly salt category
         self._salt_types = ['observation', 'live', 'supplemental drill']
         self._salt_type_cell = self._find_salt_cell()
-        self._salt_type = self._salt_type_cell.value
+        self.salt_type = self._salt_type_cell.value
 
         # Supplemental drill sheet #, if any
         self._supp_drill_num = None
