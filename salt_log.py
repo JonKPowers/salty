@@ -62,10 +62,10 @@ class SaltLog:
             if isinstance(cell[0], MergedCell):
                 break
             # If the line is blank, skip it
-            if cell[0].value is None:
+            if cell[0].value is None or cell[0].value.strip() == '':
                 continue
             # Otherwise, add the employee to the list
-            ee_list.append(Employee(cell[0].value.strip(), cell[0].row))
+            ee_list.append(Employee(cell[0].value.strip(), cell[0]))
 
         return ee_list
 
@@ -157,7 +157,7 @@ class SaltLog:
         for row in self.xl_log.iter_rows(max_col=10):
             for cell in row:
                 try:
-                    if 'operation' in cell.value.lower():
+                    if row_num is None and 'operation' in cell.value.lower():
                         row_num = cell.row
                         continue
                     if row_num is not None:
@@ -165,6 +165,8 @@ class SaltLog:
                             col_num = cell.column
                 except AttributeError:
                     pass
+                if (row_num is not None) and (col_num is not None):
+                    break
             if (row_num is not None) and (col_num is not None):
                 break
 

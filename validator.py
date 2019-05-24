@@ -20,8 +20,37 @@ StrDict = Dict[str, str]
 
 
 class Validator:
+    """ Performs validation tests on a single SaltWeek associated with a SaltLog
+
+        The Validator class provides various validation checks for a single Week instance associated with a
+        SaltLog--i.e., each Week needs to have a Validator instance spun up and run on it. The following checks
+        are performed:
+
+            * Make sure that the SALT category isn't left blank (`_check_for_blank_category()`)
+            * Make sure that the result isn't left blank (`_check_for_blank_result()`)
+            * Make sure that if the employee is off, not in area, etc. there is no result entry (`_check_category_no_result()`)
+            * Make sure that the comment column isn't left blank (`_check_for_blank_comment()')
+            * For Observation weeks, make sure the observation comment and result are valid (`_check_observation()`)
+            * For Live Salt weeks, make sure the SALT is a valid type of SALT and the result is valid (`_check_live_salt()`)
+            * For Supplemental Drill weeks, make sure the drill sheet number and result are valid(`_check_supp_drilss()`)
+            * Checks that the PCM topic for the week matches (exactly) the topic from the PCM tab and that it has a valid PCM date (`_check_PCM()`)
+            * Checks that the PCM signature has a valid format: first name, last name, GEMS (`_validate_signature`)
+
+        For additional details on these checks, please see the method-specific documentation.
+
+
+    """
     
     def __init__(self, week: SaltWeek):
+        """Constructor for Validator class.
+
+        Args:
+            week: A SaltWeek instance associated with a particular week of a SaltLog. This is the week that
+            checks will be performed on.
+
+        Returns:
+            None: Nothing is returned
+        """
         self.week : SaltWeek = week
 
         # Categories that require that the result column is left blank
@@ -45,7 +74,7 @@ class Validator:
         self.salt_errors: SaltErrorList = list()
 
     def run_checks(self, employee_list: list) -> list:
-        """Runs validation tests on week associated with Validator instance.
+        """Runs validation tests on a SaltWeek associated with the Validator instance.
 
         run_checks() performs the employee-specific validation tests on each employee in the employee_list, and
         it performs the PCM and signature validation. Each issue found during validation is encapsulated in
@@ -96,14 +125,19 @@ class Validator:
 
         return self.salt_errors
 
-    def _check_for_blanks(self, employee: Employee):
-        data = self.week.get_entry(employee)
-        for item in data:
-            if data[item].value is None:
-                error = SaltError(employee, data[item], 'Cell should not be blank')
-                self.salt_errors.append(error)
-
     def _check_for_blank_category(self, employee: Employee):
+        """Checks to make sure the SALT category isn't left blank.
+
+        Every employee should  have an entry in the SALT category column, so there are no exceptions to the rule
+        that the SALT category may not be blank. If an error is found, details are placed into a SaltError
+        instance, which is added to the self.salt_errors list for later processing.
+
+        Args:
+            employee: An Employee instance representing the employee whose entry is being checked.
+
+        Returns:
+            None: Nothing is returned.
+        """
         cells = self.week.get_entry(employee)
         values = self.week.get_entry(employee, values=True)
 
@@ -111,6 +145,20 @@ class Validator:
             self.salt_errors.append(SaltError(employee, cells['category'], 'SALT Category cannot be blank'))
 
     def _check_for_blank_result(self, employee: Employee):
+        """Checks to make sure the SALT result isn't blank (with some exceptions).
+
+        The result category shouldn't be blank unless the SALT category is 'vacation', 'disability', 'not in area',
+        'off', or 'not employed'. If an aerror is found, deails are placed into a SaltError instance, which is
+        added to the self.salt_errors list for later processing.
+
+        Args:
+            employee: An Employee instance representing the employee whose entry is being checked
+
+        Returns:
+            None: Nothing is returned
+
+
+        """
         cells = self.week.get_entry(employee)
         values = self.week.get_entry(employee, values=True)
 
@@ -122,6 +170,18 @@ class Validator:
                 self.salt_errors.append(SaltError(employee, cells['result'], 'Result cannot be blank'))
 
     def _check_for_blank_comment(self, employee:Employee):
+        """Checks to make sure the comment column isn't left blank.
+
+        Every employee should  have an entry in the comment column, regardless of the SALT category, so there are no
+        exceptions to the rule that the comment  may not be blank. If an error is found, details are placed into a
+        SaltError instance, which is added to the self.salt_errors list for later processing.
+
+        Args:
+            employee: An Employee instance representing the employee whose entry is being checked.
+
+        Returns:
+            None: Nothing is returned
+        """
         cells = self.week.get_entry(employee)
         values = self.week.get_entry(employee, values=True)
 
@@ -129,29 +189,94 @@ class Validator:
             self.salt_errors.append(SaltError(employee, cells['comment'], 'Comment cannot be blank'))
 
     def _check_category_no_result(self, employee: Employee):
+        """ If SALT category requires a blank result, checks that and that there is a valid comment.
+
+        If the SALT category is 'vacation', 'disability', 'not in area', 'off', or 'vacation', then the
+        result column must be blank. This method checks that the result is blank in those situations. In addition
+        there are a finite set of comments that are valid for any of those given SALT categories, and this method
+        checks that the comment is valid for that category.
+
+        Args:
+            employee: An Employee instance representing the employee whose entry is being checked.
+
+        Returns:
+            None: Nothing is returned.
+
+        """
         cells = self.week.get_entry(employee)
         values = self.week.get_entry(employee, values=True)
 
+        # Only continue if we have a no-result SALT category
         if values['category'] not in self._no_results:
             return None
 
+        # Make sure the result is left blank
         if values['result'] is not None:
             self.salt_errors.append(SaltError(employee, cells['result'],
                                               f'Result must be blank if category is {values["category"]}'))
 
+        # Make sure the comment is valid for the SALT category
         not_present_reason = values['category']
         if values['comment'].strip().lower() not in self._not_present_dict[not_present_reason]:
-            self.salt_errors.append(SaltError(employee, cells['comment'], f'{values["comment"]} is not a valid comment for {not_present_reason}'))
+            self.salt_errors.append(SaltError(employee, cells['comment'],
+                                              f'{values["comment"]} is not a valid comment for {not_present_reason}'))
+
+    def _week_has_correct_salt_type(self, salt_type: str, employee: Employee, cells: CellDict, values: StrDict) -> bool:
+        """Checks that the Week's SALT type matches the salt_type provided by the calling method.
+
+        `_week_has_correct_salt_type()` checks to make sure that the calling method is the correct one for the
+        SALT type for the week. For example, if called by `_check_observation()`, this method will return False
+        if the Week's salt_type attribute is not '[Oo]bservation'.
+
+        This prevents us from running checks that are inapplicable for the SALT week type.
+
+        Args:
+            salt_type: A string containing the salt type checked by the calling method (e.g, 'observation' when called by `_check_observation()`
+            employee: An Employee instance representing the employee whose entry is being checked
+            cells: Dict of cells associated with the Employee for the week (keys: 'category', 'result', 'comment')
+            values: Dict of values associated with the Employee for the week (keys: 'category', 'result', 'comment')
+
+        Returns:
+            bool: True if the Week.salt_type attribute matches the salt_type argument passed by the calling method; otherwise False
+
+        """
+        return self.week.salt_type.lower() == salt_type
 
     def _initial_comment_checks(self, salt_type: str, employee: Employee, cells: CellDict, values: StrDict) -> bool:
-        # Check that we're not in the wrong place:
+        """Runs initial checks for an Employee's SALT entry.
+
+        `It is always called by either `_check_observation()`, `_check_live_salt()`, or `_check_supp_drills`,
+        which contain the logic to validate the comment for an observation week, live SALT week, or supplemental drill
+        week, respectively.
+
+        _initial_comment_checks()` performs several tasks. First, it confirms that the SALT category column matches the
+        type of SALT for the Week. Last, it makes sure that there is an entry in the comment column--there is no
+        situation where the comment should be left blank.
+
+        If any issues are found (except for being called by the wrong method for the SALT week type), details are
+        placed into a SaltError instance, which is added to the self.salt_errors for later processing.
+
+        Args:
+            salt_type: A string containing the salt type checked by the calling method (e.g, 'observation' when called by `_check_observation()`
+            employee: An Employee instance representing the employee whose entry is being checked
+            cells: Dict of cells associated with the Employee for the week (keys: 'category', 'result', 'comment')
+            values: Dict of values associated with the Employee for the week (keys: 'category', 'result', 'comment')
+
+        Returns:
+            bool: False if the Week's SALT  type does not match the type of SALT checked by the calling method. For example,
+            if `_check_live_salt` is called on a Week where the SALT type is a supplemental drill, then False will
+            be returned. Otherwise, True is returned.
+
+        """
+        # todo does this category is blank test make sense here?
         # If the SALT category is blank, mark it as an issue
         if values['category'] == None:
             self.salt_errors.append(SaltError(employee, cells['category'], 'SALT type should not be blank'))
             return
-        # If it's not blank, only proceed if this is an observation week
-        if self.week.salt_type.lower() != 'observation':
-            return False
+
+        # For the rest of the tests, we need 'supplemental drill' to be abbreviated to 'supp drill'
+        if salt_type == 'supplemental drill':
+            salt_type = 'supp drill'
 
         # Make sure that the SALT type is matches self.week.salt_type
         if values['category'].strip().lower() != salt_type:
@@ -236,6 +361,17 @@ class Validator:
             self.salt_errors.append(SaltError(employee, cells['result'], f'{result} is not a valid live SALT result'))
 
     def _check_supp_drills(self, employee: Employee):
+        """Runs validation tests for a supplemental drill SALT Week.
+
+        `_check_supp_drills()` runs validation tests for an Employee for the SALT week. After calling
+        `_initial_comment_checks()` to confirm that these tests
+
+        Args:
+            employee:
+
+        Returns:
+
+        """
         cells = self.week.get_entry(employee)
         values = self.week.get_entry(employee, values=True)
 
@@ -243,10 +379,16 @@ class Validator:
         if not self._initial_comment_checks('supplemental drill', employee, cells, values):
             return None
 
-        # Check that they have the right drill sheet #
-        drill_sheet_num = re.search(r'\d{1,2}\.\d{2,4}\.\d{1,2}]', self.week._supp_drill_num).group(0)
-        if drill_sheet_num not in values['comment']:
-            self.salt_errors.append(SaltError(employee, cells['comment'], f'Drill sheet number must be {drill_sheet_num}'))
+        # Check that they have the right drill sheet
+        # If the correct drill sheet number could not be found, mark for manual checking
+        if self.week._supp_drill_num is None:
+            self.salt_errors.append(SaltError(employee, cells['comment'],
+                                              'Could not find correct drill sheet number--must check manually'))
+        # If we do have the correct drill sheet #, check it
+        else:
+            drill_sheet_num = re.search(r'\d{1,2}\.\d{2,4}\.\d{1,2}', self.week._supp_drill_num).group(0)
+            if drill_sheet_num not in values['comment']:
+                self.salt_errors.append(SaltError(employee, cells['comment'], f'Drill sheet number must be {drill_sheet_num}'))
 
         # Check that the result is 'A'
         if values['result'].strip() != "A":
@@ -261,7 +403,7 @@ class Validator:
 
         # Check that the log has the correct PCM topic info
         if (pcm_topic is None) or (pcm_topic == ''):
-            self.salt_errors.append(SaltError(None, pcm_cell, 'PCM topis shouldn\'t be blank'))
+            self.salt_errors.append(SaltError(None, pcm_cell, 'PCM topic shouldn\'t be blank'))
         else:
             correct_topic: str = self.week._correct_PCM_topic
             if pcm_topic.strip().lower() != correct_topic.strip().lower():

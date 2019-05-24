@@ -45,30 +45,42 @@ class MonthValidator:
 
     def check_training_drill(self, employee: Employee):
 
-        # Make sure that the employee.valid_drill_dates isn't empty.
-        # If it is, try to populate it
-        if len(employee.valid_drill_dates) == 0:
-            self.set_valid_employee_dates(employee)
-
-        # If employee.valid_drill_dates is still empty, something's wrong
-        if len(employee.valid_drill_dates) == 0:
-            raise Exception('Something\'s wrong when trying to check training drill')
-
-
+        # Check whether employee drill date is empty
         drill_date_cell = self.log.xl_log.cell(row=employee.row, column=self.drill_date_col)
         drill_result_cell = self.log.xl_log.cell(row=employee.row, column=self.drill_result_col)
 
-        # Ensure that employee was (theoretically) present on the indicated drill date
-        if drill_date_cell.value.date() not in employee.valid_drill_dates:
-            self.salt_errors.append(SaltError(employee, drill_date_cell,
-                                              f'Employee not present on {drill_date_cell.value}'))
+        # Make sure that the employee.valid_drill_dates is populated; if it is, check it
+        if drill_date_cell.value is None:
+            self.salt_errors.append(SaltError(employee, drill_date_cell, 'Drill date shouldn\'t be empty'))
+        else:
+            # Check whether list of valid employee drill date is empty
+            # If it is, try to populate it
+            if len(employee.valid_drill_dates) == 0:
+                self.set_valid_employee_dates(employee)
 
-        # The only acceptable result for a monthly training drill is a P
-        if drill_result_cell.value.lower() != 'p':
-            self.salt_errors.append(SaltError(employee, drill_result_cell,
-                                              f'Monthly training drill result must be "P"'))
+            # If employee.valid_drill_dates is still empty, something's wrong
+            if len(employee.valid_drill_dates) == 0:
+                raise Exception('Something\'s wrong when trying to check training drill')
+
+            # Ensure that employee was (theoretically) present on the indicated drill date
+            if drill_date_cell.value.date() not in employee.valid_drill_dates:
+                self.salt_errors.append(SaltError(employee, drill_date_cell,
+                                                  f'Employee not present on {drill_date_cell.value}'))
+
+        # Check whether drill result cell is populated; if so, check it
+        if drill_result_cell.value is None:
+            self.salt_errors.append(SaltError(employee, drill_result_cell, 'Drill result shouldn\'t be empty'))
+        else:
+            # The only acceptable result for a monthly training drill is a P
+            if drill_result_cell.value.lower() != 'p':
+                self.salt_errors.append(SaltError(employee, drill_result_cell,
+                                                  f'Monthly training drill result must be "P"'))
 
     def check_operation_name(self):
+
+        if self.log.operation_name is None:
+            self.salt_errors.append(SaltError(None, self.log.operation_name_cell, 'Operation name shouldn\'t be empty'))
+            return None
 
         if re.search(self.valid_sort_code, self.log.operation_name) is None:
             self.salt_errors.append(SaltError(None, self.log.operation_name_cell, 'Operation name must be 2DA'))
